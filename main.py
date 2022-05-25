@@ -21,18 +21,27 @@ def log(string: str):
 async def calc_diff(score: dict):
     mode_vn = GameMode(score['mode']).as_vanilla
     async with db_context(stored.source_pool) as (_, cur):
-        await cur.execute(f"select id from maps where md5={score['map_md5']}")
-        osu_file_path = config.osu_file_folder + f"{str((await cur.fetchone())['id'])}.osu"
-        if os.path.exists(osu_file_path):
-            param = ScoreParams(mods=score['mods'], acc=score['acc'], n300=score['n300'], n100=score['n100'],
-                                n50=score['n50'],
-                                nMisses=score['nmiss'], nKatu=score['nkatu'], combo=score['max_combo'],
-                                score=score['score'])
-            (result, ) = performance.calculate(mode_vn, osu_file_path, param)
-            return result.pp
-        else:
-            log(f'Map not found: {osu_file_path}')
+        await cur.execute("select id from maps where md5=%s", [score['map_md5']])
+        row = await cur.fetchone()
+        if row is None:
+            await insert_queue(score['map_md5'], 'entry')
             return score['pp']
+        else:
+            osu_file_path = config.osu_file_folder + f"{str(row['id'])}.osu"
+            if os.path.exists(osu_file_path):
+                pp = 0
+                try:
+                    param = ScoreParams(mods=score['mods'], acc=score['acc'], n300=score['n300'], n100=score['n100'],
+                                        n50=score['n50'],
+                                        nMisses=score['nmiss'], nKatu=score['nkatu'], combo=score['max_combo'],
+                                        score=score['score'])
+                    (result,) = performance.calculate(mode_vn, osu_file_path, [param])
+                    pp = result.pp
+                finally:
+                    return pp
+            else:
+                await insert_queue(score['map_md5'], 'file')
+                return score['pp']
 
 
 def handle_osr(table_name: str, score: dict, new_id: int):
@@ -50,6 +59,12 @@ def handle_osr(table_name: str, score: dict, new_id: int):
         log(f'Replay not exist: {path}')
 
 
+async def insert_queue(md5: str, lack_type: str):
+    async with db_context(stored.target_pool) as (_, cur):
+        # Who cares about duplicated key ?
+        await cur.execute(f'insert ignore into maps_lack values (%s, %s)', [md5, lack_type])
+
+
 async def run_task():
     await stored.create_pool()
     async with db_context(stored.source_pool) as (_, cur):
@@ -57,7 +72,7 @@ async def run_task():
             log(f'Now handling: {table_name}')
             counter = 0
             total = 0
-            await cur.execute(f'select * from {table_name}')
+            await cur.execute(f'select * from {table_name} limit 10000')
             async for score in cur:
                 counter += 1
                 total += 1
@@ -66,40 +81,43 @@ async def run_task():
                     log(f"{total} scores are handled")
                 async with db_context(stored.target_pool) as (_, target_cur):
                     pp = await calc_diff(score)
-                    new_id = await target_cur.execute(
+                    if pp > 8192:
+                        pp = 8192
+                    await target_cur.execute(
                         "INSERT INTO scores "
                         "VALUES (NULL, "
-                        ":map_md5, :score, :pp, :acc, "
-                        ":max_combo, :mods, :n300, :n100, "
-                        ":n50, :nmiss, :ngeki, :nkatu, "
-                        ":grade, :status, :mode, :play_time, "
-                        ":time_elapsed, :client_flags, :user_id, :perfect, "
-                        ":checksum)",
-                        {
-                            "map_md5": score['map_md5'],
-                            "score": score['score'],
-                            "pp": pp,
-                            "acc": score['acc'],
-                            "max_combo": score['max_combo'],
-                            "mods": score['mods'],
-                            "n300": score['n300'],
-                            "n100": score['n100'],
-                            "n50": score['n50'],
-                            "nmiss": score['nmiss'],
-                            "ngeki": score['ngeki'],
-                            "nkatu": score['nkatu'],
-                            "grade": score['grade'],
-                            "status": score['status'],
-                            "mode": score['mode'],
-                            "play_time": score['play_time'],
-                            "time_elapsed": score['time_elapsed'],
-                            "client_flags": score['client_flags'],
-                            "user_id": score['userid'],
-                            "perfect": score['perfect'],
-                            "checksum": score['online_checksum'],
-                        })
-                    handle_osr(table_name, score, new_id)
-                log(f"{total} scores are handled, {table_name} is finished")
+                        "%s, %s, %s, %s, "
+                        "%s, %s, %s, %s, "
+                        "%s, %s, %s, %s, "
+                        "%s, %s, %s, %s, "
+                        "%s, %s, %s, %s, "
+                        "%s)",
+                        [
+                            score['map_md5'],
+                            score['score'],
+                            pp,
+                            score['acc'],
+                            score['max_combo'],
+                            score['mods'],
+                            score['n300'],
+                            score['n100'],
+                            score['n50'],
+                            score['nmiss'],
+                            score['ngeki'],
+                            score['nkatu'],
+                            score['grade'],
+                            score['status'],
+                            score['mode'],
+                            score['play_time'],
+                            score['time_elapsed'],
+                            score['client_flags'],
+                            score['userid'],
+                            score['perfect'],
+                            score['online_checksum'],
+                        ])
+                    handle_osr(table_name, score, target_cur.lastrowid)
+            log(f"{total} scores are handled, {table_name} is finished")
+
 
 if __name__ == '__main__':
     logging.basicConfig(filename='script.log', encoding='utf-8', level=logging.INFO, format='%(asctime)s %(message)s')

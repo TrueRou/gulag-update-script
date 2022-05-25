@@ -10,6 +10,6 @@ target_mysql_user = "bancho.py"
 target_mysql_password = "tiMaxdEksxmxLA7x"
 target_mysql_dbname = "bancho.py"
 
-osu_file_folder = "/osu-server/gulag/osu/"
+osu_file_folder = "/osu-server/gulag/.data/osu/2022_04_01_osu_files/"
 replay_folder = "/osu-server/gulag/.data/"
 new_bancho_folder = "/osu-server/bancho.py/"
