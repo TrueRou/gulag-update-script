@@ -59,10 +59,18 @@ def handle_osr(table_name: str, score: dict, new_id: int):
         log(f'Replay not exist: {path}')
 
 
+def get_mode(table_name: str, mode: int) -> int:
+    if table_name == 'scores_vn':
+        return mode
+    if table_name == 'scores_rx':
+        return mode + 4
+    if table_name == 'scores_ap':
+        return mode + 8
+
+
 async def insert_queue(md5: str, lack_type: str):
     async with db_context(stored.target_pool) as (_, cur):
-        # Who cares about duplicated key ?
-        await cur.execute(f'insert ignore into maps_lack values (%s, %s)', [md5, lack_type])
+        await cur.execute(f'insert into maps_lack (md5, lack_type) values (%s, %s) on duplicate key update md5=%s', [md5, lack_type, md5])
 
 
 async def run_task():
@@ -72,50 +80,53 @@ async def run_task():
             log(f'Now handling: {table_name}')
             counter = 0
             total = 0
-            await cur.execute(f'select * from {table_name} limit 10000')
+            await cur.execute(f'select * from {table_name}')
             async for score in cur:
-                counter += 1
-                total += 1
-                if counter >= 1000:
-                    counter = 0
-                    log(f"{total} scores are handled")
-                async with db_context(stored.target_pool) as (_, target_cur):
-                    pp = await calc_diff(score)
-                    if pp > 8192:
-                        pp = 8192
-                    await target_cur.execute(
-                        "INSERT INTO scores "
-                        "VALUES (NULL, "
-                        "%s, %s, %s, %s, "
-                        "%s, %s, %s, %s, "
-                        "%s, %s, %s, %s, "
-                        "%s, %s, %s, %s, "
-                        "%s, %s, %s, %s, "
-                        "%s)",
-                        [
-                            score['map_md5'],
-                            score['score'],
-                            pp,
-                            score['acc'],
-                            score['max_combo'],
-                            score['mods'],
-                            score['n300'],
-                            score['n100'],
-                            score['n50'],
-                            score['nmiss'],
-                            score['ngeki'],
-                            score['nkatu'],
-                            score['grade'],
-                            score['status'],
-                            score['mode'],
-                            score['play_time'],
-                            score['time_elapsed'],
-                            score['client_flags'],
-                            score['userid'],
-                            score['perfect'],
-                            score['online_checksum'],
-                        ])
-                    handle_osr(table_name, score, target_cur.lastrowid)
+                try:
+                    counter += 1
+                    total += 1
+                    if counter >= 1000:
+                        counter = 0
+                        log(f"{total} scores are handled")
+                    async with db_context(stored.target_pool) as (_, target_cur):
+                        pp = await calc_diff(score)
+                        if pp > 8192:
+                            pp = 8192
+                        await target_cur.execute(
+                            "INSERT INTO scores "
+                            "VALUES (NULL, "
+                            "%s, %s, %s, %s, "
+                            "%s, %s, %s, %s, "
+                            "%s, %s, %s, %s, "
+                            "%s, %s, %s, %s, "
+                            "%s, %s, %s, %s, "
+                            "%s)",
+                            [
+                                score['map_md5'],
+                                score['score'],
+                                pp,
+                                score['acc'],
+                                score['max_combo'],
+                                score['mods'],
+                                score['n300'],
+                                score['n100'],
+                                score['n50'],
+                                score['nmiss'],
+                                score['ngeki'],
+                                score['nkatu'],
+                                score['grade'],
+                                score['status'],
+                                get_mode(table_name, score['mode']),
+                                score['play_time'],
+                                score['time_elapsed'],
+                                score['client_flags'],
+                                score['userid'],
+                                score['perfect'],
+                                score['online_checksum'],
+                            ])
+                        handle_osr(table_name, score, target_cur.lastrowid)
+                except:
+                    continue
             log(f"{total} scores are handled, {table_name} is finished")
 
 
