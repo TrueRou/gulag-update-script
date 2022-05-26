@@ -136,10 +136,10 @@ async def run_stats_update():
     async with db_context(stored.target_pool) as (_, cur):
         await cur.execute('select count(*) from users')
         total = (await cur.fetchone())["count(*)"]
-        await cur.execute('select id, name from users')
+        await cur.execute('select id from users')
         async for user in cur:
             count += 1
-            log(f'Handle stats ({user["id"]}, {user["name"]}) {count} / {total}')
+            log(f'Handle stats ({user["id"]}) {count} / {total}')
             try:
                 for mode in [0, 1, 2, 3, 4, 5, 6, 8]:  # 7 is outdated
                     async with db_context(stored.target_pool) as (_, cur1):
@@ -172,10 +172,10 @@ async def run_rank_update():
     async with db_context(stored.target_pool) as (_, cur):
         await cur.execute('select count(*) from users')
         total = (await cur.fetchone())["count(*)"]
-        await cur.execute('select id, name from users')
+        await cur.execute('select id from users')
         async for user in cur:
             count += 1
-            log(f'Handle rank ({user["id"]}, {user["name"]}) {count} / {total}')
+            log(f'Handle rank ({user["id"]}) {count} / {total}')
             try:
                 for mode in [0, 1, 2, 3, 4, 5, 6, 8]:  # 7 is outdated
                     async with db_context(stored.target_pool) as (_, cur1):
@@ -214,7 +214,7 @@ async def run_rank_update():
 
 async def run_task():
     await stored.create_pool()
-    await run_scores_update()
+    # await run_scores_update()
     await run_stats_update()
     await run_rank_update()
 
