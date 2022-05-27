@@ -157,10 +157,10 @@ async def run_stats_update():
                         async with db_context(stored.target_pool) as (_, cur2):
                             await cur2.execute('update stats set total_hits=%s where id=%s and mode=%s',
                                                [int(total_hits), user['id'], mode])
-                            await cur2.execute('update stats set plays=%s where id=%s and mode=%s and plays<%s',
-                                               [plays, user['id'], mode, plays])
-                            await cur2.execute('update stats set playtime=%s where id=%s and mode=%s and playtime<%s',
-                                               [total_length, user['id'], mode, total_length])
+                            await cur2.execute('update stats set plays=%s where id=%s and mode=%s',
+                                               [plays, user['id'], mode])
+                            await cur2.execute('update stats set playtime=%s where id=%s and mode=%s',
+                                               [total_length, user['id'], mode])
             except:
                 continue
     log('total_hits & plays & play_time update finished')
@@ -214,7 +214,7 @@ async def run_rank_update():
 
 async def run_task():
     await stored.create_pool()
-    # await run_scores_update()
+    await run_scores_update()
     await run_stats_update()
     await run_rank_update()
 
