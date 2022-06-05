@@ -52,9 +52,9 @@ def handle_osr(table_name: str, score: dict, new_id: int):
         path += 'osr_rx'
     if table_name == 'scores_ap':
         path += 'osr_ap'
-    path += f"/{score['id']}.osr"
+    path += f"{score['id']}.osr"
     if os.path.exists(path):
-        copyfile(path, config.new_bancho_folder + f"/.data/osr/{new_id}.osr")
+        copyfile(path, config.new_bancho_folder + f".data/osr/{new_id}.osr")
     else:
         log(f'Replay not exist: {path}')
 
