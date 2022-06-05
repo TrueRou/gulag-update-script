@@ -45,6 +45,8 @@ async def calc_diff(score: dict):
 
 
 def handle_osr(table_name: str, score: dict, new_id: int):
+    if score['grade'] == 'F':
+        return  # Failed score has no replay
     path = config.replay_folder
     if table_name == 'scores_vn':
         path += 'osr_vn'
